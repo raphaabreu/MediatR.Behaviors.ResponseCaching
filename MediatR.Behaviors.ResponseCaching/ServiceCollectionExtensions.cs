@@ -1,9 +1,8 @@
 ﻿using System;
-using App.Metrics;
 using MediatR.Behaviors.ResponseCaching;
 using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace MediatR
 {
@@ -11,18 +10,42 @@ namespace MediatR
     {
         public static IServiceCollection AddMediatorResponseCaching<TRequest, TResponse>(
             this IServiceCollection services,
-            string cacheKeyPrefix,
-            DistributedCacheEntryOptions options
+            Action<MediatorResponseCacheOptions<TRequest, TResponse>> configureAction
         ) where TRequest : IRequest<TResponse>
         {
-            services.AddTransient<IPipelineBehavior<TRequest, TResponse>>(provider =>
-                new ResponseCachingBehavior<TRequest, TResponse>(
-                    cacheKeyPrefix,
-                    options,
-                    provider.GetRequiredService<IDistributedCache>(),
-                    provider.GetService<IMetrics>(),
-                    provider.GetService<ILogger<ResponseCachingBehavior<TRequest, TResponse>>>()
-                )
+            services.Configure(configureAction);
+
+            services.TryAddSingleton<IMediatorResponseCache<TRequest, TResponse>, MediatorResponseCache<TRequest, TResponse>>();
+
+            services.TryAddTransient<IPipelineBehavior<TRequest, TResponse>, ResponseCachingBehavior<TRequest, TResponse>>();
+
+            return services;
+        }
+
+        public static IServiceCollection AddMediatorResponseCaching<TRequest, TResponse>(
+            this IServiceCollection services,
+            string cacheKeyPrefix,
+            DistributedCacheEntryOptions entryOptions
+        ) where TRequest : IRequest<TResponse>
+        {
+            services.AddMediatorResponseCaching<TRequest, TResponse>(opt =>
+            {
+                opt.KeyPrefix = cacheKeyPrefix;
+                opt.EntryOptions = entryOptions;
+            });
+
+            return services;
+        }
+
+        public static IServiceCollection AddMediatorResponseCaching<TRequest, TResponse>(
+            this IServiceCollection services,
+            string cacheKeyPrefix,
+            TimeSpan lifetime
+        ) where TRequest : IRequest<TResponse>
+        {
+            services.AddMediatorResponseCaching<TRequest, TResponse>(opt => opt
+                .WithPrefix(cacheKeyPrefix)
+                .WithLifetime(lifetime)
             );
 
             return services;
@@ -31,20 +54,14 @@ namespace MediatR
         public static IServiceCollection AddMediatorResponseCaching<TRequest, TResponse>(
             this IServiceCollection services,
             string cacheKeyPrefix,
-            TimeSpan absoluteExpirationRelativeToNow
+            TimeSpan lifetime,
+            Func<TRequest, object> indexingOn
         ) where TRequest : IRequest<TResponse>
         {
-            services.AddTransient<IPipelineBehavior<TRequest, TResponse>>(provider =>
-                new ResponseCachingBehavior<TRequest, TResponse>(
-                    cacheKeyPrefix,
-                    new DistributedCacheEntryOptions
-                    {
-                        AbsoluteExpirationRelativeToNow = absoluteExpirationRelativeToNow
-                    },
-                    provider.GetRequiredService<IDistributedCache>(),
-                    provider.GetService<IMetrics>(),
-                    provider.GetService<ILogger<ResponseCachingBehavior<TRequest, TResponse>>>()
-                )
+            services.AddMediatorResponseCaching<TRequest, TResponse>(opt => opt
+                .WithPrefix(cacheKeyPrefix)
+                .WithLifetime(lifetime)
+                .WithIndexingOn(indexingOn)
             );
 
             return services;
