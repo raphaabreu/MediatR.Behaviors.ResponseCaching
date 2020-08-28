@@ -11,6 +11,7 @@
     <PackageTags>mediator response cache distributedcache behavior</PackageTags>
     <Description>Adds transparent response caching to MediatR request pipeline.</Description>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+    <Version>1.0.1</Version>
   </PropertyGroup>
 
   <ItemGroup>
